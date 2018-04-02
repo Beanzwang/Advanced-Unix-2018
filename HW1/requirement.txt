@@ -1,0 +1,34 @@
+It is common to have a customized shell for embedded devices, e.g., switches, routers, cameras, and many IoT devices. In this homework, you have to implement a secure interactive shell running in a chroot'ed environment. No system binaries nor libraries are available in the chroot'ed environment. Your implemented program is the only binary that is available in the runtime environment. Therefore, you have to implement several required functions by yourself. The requirements for your secure interactive shell is as follows
+
+You have to compile your program statically so that your program does not depend on any external libraries in the system.
+You program will be launched as a service using xinetd. The sample configuration for running your service will be similar to this one.
+We will launch your program with root (euid = 0) permission, and you have to set euid and egid to the first two values passed to your program (via argc/argv), respectively
+---
+A breif summary of supported commands and their minimum requirements are listed here (ordered alphabetically): 
+cat {file}: Display content of {file}.
+cd {dir}: Switch current working directory to {dir}. 
+chmod {mode} {file/dir}: Change the mode (permission) of a file or directory. {mode} is an octal number. Please do not follow symbolc links.
+echo {str} [filename]: Display {str}. If [filename] is given, open [filename] and append {str} to the file.
+exit: Leave the shell.
+find [dir]: List files/dirs in the current working directory or [dir] if it is given. Minimum outputs contatin file type, size, and name.
+help: Display help message.
+id: Show current euid and egid. 
+mkdir {dir}: Create a new directory {dir}.
+pwd: Print the current working directory.
+rm {file}: Remove a file.
+rmdir {dir}: Remove an empty directory.
+stat {file/dir}: Display detailed information of the given file/dir.
+touch {file}: Create {file} if it does not exist, or update its access and modification timestamp.
+umask {mode}: Change the umask of the current session.
+---
+If a command cannot be handled or returns with errors, please display a meaningful error message to the user.
+To test your program, you can try to install xinetd in your own virtual machine, edit and use the sample configuration we provided, and test your program in the chroot'ed environment.
+
+Please submit your homework via the E3 system. You have to pack all the required files (README, Makefile, source codes, and maybe xinetd configuration file) in a single zip archive file. Scores will be given based on the correctness and completeness of your implementation.
+
+https://people.cs.nctu.edu.tw/~chuang/courses/unixprog/resources/hw1_shell/
+
+p.s.
+1) You can only implement your homework in both C and/or C++.
+2) ZERO score will be get if there is no executable after running command `make`. 
+3) You will need to provided your own xinetd configuration if your implementation is different with what we provided.

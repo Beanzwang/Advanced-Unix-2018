@@ -77,6 +77,16 @@ std::string parse_mode(mode_t mode)
     std::string str = "---------- ";
     if (S_ISDIR(mode)) // test if the file is directory or not.
         str[0] = 'd';
+    if (S_ISBLK(mode))
+    	str[0] = 'b';
+    if (S_ISCHR(mode))
+    	str[0] = 'c';
+    if (S_ISFIFO(mode))
+    	str[0] = 'p';
+    if (S_ISREG(mode))
+    	str[0] = '-';
+    if (S_ISLNK(mode))
+    	str[0] = 'l';
 
     if (mode & S_IRUSR)
         str[1] = 'r'; /* 3 bits for user  */
@@ -195,6 +205,7 @@ void find_command()
     struct dirent *ent;
     char buf[300];
     size_t size = 300;
+
     if (tokens.size() == 1)
     {
         // list files / dirs in the current working directory
@@ -206,6 +217,7 @@ void find_command()
         // or [dir] if it is given.
         dir = opendir(tokens[1].c_str());
     }
+
     if (dir != NULL)
     {
         // Minimum outputs contain file type, size, and name.\n
@@ -213,7 +225,14 @@ void find_command()
         {
             struct stat stat_buf;
             int state;
-            std::string full_path = tokens[1] + "/" + ent->d_name;
+            std::string full_path;
+            if (tokens.size() == 1) {
+            	std::string str_buf(buf);
+            	str_buf = buf;
+            	full_path = str_buf + "/" + ent->d_name;
+            } else {
+            	full_path = tokens[1] + "/" + ent->d_name;
+            }
             state = stat(full_path.c_str(), &stat_buf);
             if (state != 0)
                 perror("Error");
@@ -357,17 +376,30 @@ std::vector<std::string> tokenize(std::string str)
 
 int main(int argc, char *argv[])
 {
-    size_t bufsize = 32;
-    size_t chars;
+	setlinebuf(stdin);
+	setvbuf(stdout, NULL, _IONBF, 0);
+
+	if (argc != 3) {
+		std::cout << "Pass in too many or too few arguments." << std::endl;
+	}
+	
+
+	int uid_state = atoi(argv[1]);
+	int gid_state = atoi(argv[2]);
+
+	if (uid_state == -1) {
+		perror("Error");
+	}
+	if (gid_state == -1) {
+		perror("Error");
+	}
 
     while (1)
     {
         std::string str;
         printf("$ ");
         std::getline(std::cin, str);
-        if (str[str.length() - 2] == '\r')
-        {
-            str[str.length() - 2] = '\n';
+        if (str[str.length() - 1] == '\r') {
             str = str.substr(0, str.length() - 1);
         }
         if (str[str.length() - 1] == '\n')

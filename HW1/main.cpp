@@ -11,6 +11,7 @@
 #include <vector>
 #include <dirent.h>
 #include <cstring>
+#include <errno.h>
 
 #define CHUNK 1024
 #define CAT "cat"
@@ -381,18 +382,30 @@ int main(int argc, char *argv[])
 
 	if (argc != 3) {
 		std::cout << "Pass in too many or too few arguments." << std::endl;
+		return -1;
 	}
 	
-
-	int uid_state = atoi(argv[1]);
-	int gid_state = atoi(argv[2]);
-
-	if (uid_state == -1) {
-		perror("Error");
+	uid_t euid;
+	gid_t egid;
+	if (sscanf(argv[1], "%d", &euid) == EOF && errno != 0) {
+		perror("euid must be integers.");
+		return -1;
 	}
-	if (gid_state == -1) {
-		perror("Error");
+	if (sscanf(argv[1], "%d", &egid) == EOF && errno != 0) {
+		perror("egid must be integers.");
+		return -1;
 	}
+
+	if (seteuid(euid) != 0) {
+		perror("seteuid error.");
+		return -1;
+	}
+
+	if (setegid(egid) != 0) {
+		perror("setegid error.");
+		return -1;
+	}
+	
 
     while (1)
     {

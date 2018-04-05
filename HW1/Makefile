@@ -1,4 +1,4 @@
-COMPILE = g++ -o hw1 main.cpp
+COMPILE = g++ -static -o hw1 main.cpp
 
 main: main.cpp
 	$(COMPILE)

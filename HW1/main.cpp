@@ -396,16 +396,15 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-	if (seteuid(euid) != 0) {
-		perror("seteuid error.");
-		return -1;
-	}
-
 	if (setegid(egid) != 0) {
 		perror("setegid error.");
 		return -1;
 	}
-	
+
+    if (seteuid(euid) != 0) {
+        perror("seteuid error.");
+        return -1;
+    }
 
     while (1)
     {

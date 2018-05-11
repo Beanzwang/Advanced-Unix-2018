@@ -13,9 +13,6 @@
 #include <algorithm>
 #include <iomanip>
 
-#define PS "ps"
-#define EXIT "exit"
-
 uid_t uid;
 gid_t gid;
 
@@ -35,8 +32,6 @@ struct Row {
 std::vector<std::string> get_pid_dir();
 std::vector<Row> read_stat(std::vector<std::string> pid_dir);
 bool is_number(const std::string &s);
-void parse_cmd(std::vector<std::string>);
-std::vector<std::string> tokenize(std::string);
 void print_ps(std::vector<Row> rows, bool show_all);
 void print_indt(Row row);
 bool sort_ppid(const Row &row1, const Row &row2);
@@ -61,31 +56,16 @@ bool sort_sid(const Row &row1, const Row &row2) {
     return row1.sid < row2.sid;
 }
 
-std::vector<std::string> tokenize(std::string s) {
-    // separate string by spaces
-    std::vector<std::string> tokens;
-    std::istringstream iss(s);
-    while (iss) {
-        std::string subs;
-        iss >> subs;
-        tokens.push_back(subs);
-    }
-    return tokens;
-}
-
-
 std::vector<std::string> get_pid_dir() {
     // get the pid dir in /proc
     DIR *dir;
     struct dirent *ent;
-    // char buf[300];
     std::vector<std::string> pid_dir;
 
     if ((dir = opendir("/proc")) != nullptr)
     {
         /* print all the files and directories within directory */
-        while ((ent = readdir(dir)) != nullptr)
-        {
+        while ((ent = readdir(dir)) != nullptr) {
             // only store the dir which name is number (pid)
             if (is_number(ent->d_name)) {
                 std::string d_name(ent->d_name);
@@ -94,8 +74,7 @@ std::vector<std::string> get_pid_dir() {
             }
         }
         closedir(dir);
-    } else
-    {
+    } else {
         /* could not open directory */
         perror("Error occur when opening /proc");
     }
@@ -147,50 +126,6 @@ std::vector<Row> read_stat(std::vector<std::string> pid_dir) {
 }
 
 
-
-void parse_cmd(std::vector<std::string> tokens) {
-    // print the stat according to the commands.
-    if (EXIT == tokens[0]) {
-        std::cout << "Bye~" << std::endl;
-        exit(0);
-    }
-    if (PS != tokens[0]) {
-        std::cout << "Unknow command." << std::endl;
-    } else {
-        /*
-        -a: can be used to list processes from all the users.
-        -x: can be used to list processes without an associated terminal.
-        */
-        std::vector<std::string> pid_dir = get_pid_dir();
-        std::vector<Row> rows = read_stat(pid_dir);
-        bool print_all = false;
-
-        if ("" == tokens[1]) {
-            // default
-            print_all = false;
-        }
-        
-        if ("-a" == tokens[1]) {
-            print_all = true;
-        }
-        if ("-x" == tokens[1]) {
-            
-        }
-        // -p, -q, -r, and -s, which sort the listed processes by pid (default), ppid, pgid, and sid, respectively.
-        if ("-p" == tokens[1]) {
-            // default, do nothing.
-        } else if ("-q" == tokens[1]) {
-            std::sort(rows.begin(), rows.end(), sort_ppid);
-        } else if ("-r" == tokens[1]) {
-            std::sort(rows.begin(), rows.end(), sort_pgid);
-        } else if ("s" == tokens[1]) {
-            std::sort(rows.begin(), rows.end(), sort_sid);
-        }
-
-        print_ps(rows, print_all);
-    }
-}
-
 void print_ps(std::vector<Row> rows, bool show_all) {
     std::vector<Row>::iterator it;
 
@@ -221,21 +156,70 @@ void print_indt(Row row) {
     std::cout << " " << row.img << " " << row.cmd << std::endl;
 }
 
-int main() {
+int main(int argc, char *argv[]) {
     // get euid & egid of the user
     uid = getuid();
     gid = getgid();
 
-    while(1) {
-        std::string str;
-        std::cout << "$ ";
-        std::getline(std::cin, str);
-        if ((str[str.length() - 1] == '\r') ||
-            (str[str.length() - 1] == '\n')) {
-            str = str.substr(0, str.length() - 1);
-        } 
-        std::vector<std::string> tokens = tokenize(str);
-        parse_cmd(tokens);
+    // print the stat according to the commands.
+    if (argc > 4 || argc < 2) {
+        std::cout << "Error: too few or too many arguments." << std::endl;
+        return 0;
     }
+
+    if (strcmp("ps", argv[1]) != 0) {
+        std::cout << "Error: Unknow command." << std::endl;
+        return 0;
+    }
+    
+    bool print_all = false;  //  "-a"
+    bool sort_q = false;  // sort ppid
+    bool sort_r = false;  // sort pgid
+    bool sort_s = false;  // sort sid
+
+    std::vector<std::string> pid_dir = get_pid_dir();
+    std::vector<Row> rows = read_stat(pid_dir);
+
+    bool valid_cmd = true;
+    for (int i = 2; i < argc; ++i) {
+        valid_cmd = false;
+        /*
+        -a: can be used to list processes from all the users.
+        -x: can be used to list processes without an associated terminal.
+        -p, -q, -r, and -s, which sort the listed processes by pid (default), ppid, pgid, and sid, respectively.
+        */
+        if (strcmp("-a", argv[i]) == 0) {
+            valid_cmd = true;
+            print_all = true;
+        }
+        // if (strcmp("-x", argv[i]) == 0) print_all = true;
+        if (strcmp("-p", argv[i]) == 0) {
+            valid_cmd = true;
+        }
+        if (strcmp("-q", argv[i]) == 0) {
+            std::sort(rows.begin(), rows.end(), sort_ppid);
+            valid_cmd = true;
+            sort_q = true;
+        }
+        if (strcmp("-r", argv[i]) == 0) {
+            std::sort(rows.begin(), rows.end(), sort_pgid);
+            valid_cmd = true;
+            sort_r = true;
+        }
+        if (strcmp("-s", argv[i]) == 0) {
+            std::sort(rows.begin(), rows.end(), sort_sid);
+            valid_cmd = true;
+            sort_s = true;
+        }
+        if (!valid_cmd) {
+            std::cout << "Error: Unknown command." << std::endl;
+            return 0;
+        }
+    }
+
+    if (sort_q && sort_r && sort_s) std::cout << "Error: You can only sort one element at a time." << std::endl;
+
+    print_ps(rows, print_all);
+    
     return 0;
 }

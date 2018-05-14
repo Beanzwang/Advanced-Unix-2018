@@ -50,6 +50,10 @@ bool is_number(const std::string &s) {
     return !s.empty() && s.find_first_not_of("0123456789") == std::string::npos;
 }
 
+bool sort_pid(const Row &row1, const Row &row2) {
+	return row1.pid < row2.pid;
+}
+
 bool sort_ppid(const Row &row1, const Row &row2) {
     return row1.ppid < row2.ppid;
 }
@@ -244,20 +248,10 @@ int main(int argc, char *argv[]) {
     // get euid & egid of the user
     uid = getuid();
     gid = getgid();
-
-    // print the stat according to the commands.
-    if (argc > 5 || argc < 2) {
-        std::cout << "Error: too few or too many arguments." << std::endl;
-        return 0;
-    }
-
-    if (strcmp("ps", argv[1]) != 0) {
-        std::cout << "Error: Unknow command." << std::endl;
-        return 0;
-    }
     
     bool print_all = false;  //  "-a"
     bool wt_assoc = false;  // "-x"
+    bool sort_p = false;
     bool sort_q = false;  // sort ppid
     bool sort_r = false;  // sort pgid
     bool sort_s = false;  // sort sid
@@ -266,9 +260,10 @@ int main(int argc, char *argv[]) {
     // return 0;
     std::vector<std::string> pid_dir = get_pid_dir();
     std::vector<Row> rows = read_stat(pid_dir);
+    std::sort(rows.begin(), rows.end(), sort_pid);
 
     bool valid_cmd = true;
-    for (int i = 2; i < argc; ++i) {
+    for (int i = 1; i < argc; ++i) {
         valid_cmd = false;
         /*
         -a: can be used to list processes from all the users.
@@ -287,6 +282,7 @@ int main(int argc, char *argv[]) {
 
         if (strcmp("-p", argv[i]) == 0) {
             valid_cmd = true;
+            sort_p = true;
         }
         if (strcmp("-q", argv[i]) == 0) {
             std::sort(rows.begin(), rows.end(), sort_ppid);
@@ -309,7 +305,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    if (sort_q && sort_r && sort_s) std::cout << "Error: You can only sort one element at a time." << std::endl;
+    if (sort_p && sort_q && sort_r && sort_s) std::cout << "Error: You can only sort one element at a time." << std::endl;
 
     print_ps(rows, print_all, wt_assoc);
 

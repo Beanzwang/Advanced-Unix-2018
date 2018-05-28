@@ -42,6 +42,14 @@ struc act  ; sigaction structure
 	.sa_restorer: resq 1
 endstruc
 
+struc k_act
+	.sa_handler: resq 1
+	.sa_flags: resq 1
+	.sa_restorer: resq 1
+	.sa_mask: resq 1
+	.size:
+endstruc
+
 struc siginfo
 	.si_signo:	resq 1
 	.si_errno:	resq 1
@@ -69,6 +77,12 @@ struc siginfo
 	.si_arch:	resq 1
 endstruc
 
+struc timespec
+	.tv_sec:	resq 1
+	.tv_nsec:	resq 1
+	.size:
+endstruc
+
 	; functoin call params: RDI, RSI, RDX, RCX, R8, R9 
 	; system call params: RDI, RSI, RDX, R10, R8, R9
 	section .text
@@ -82,35 +96,48 @@ exit:
 	
 	global sigreturn
 sigreturn
-	push rbp
-	mov rbp, rsp
 	mov rax, 15
 	syscall
-	leave
 	ret
 
-	global sigaction
+	global sigaction:function
 sigaction
     ; long sigaction(int how, const struct sigaction *nact, struct sigaction *oact)
 	push rbp
 	mov rbp, rsp
-	push r10
-	or QWORD [rsi+act.sa_flags], SA_RESTORER
-	call sigreturn
-	mov [rsi+act.sa_restorer], rax
+	sub rsp, k_act.size	
+
+	mov rax, [rsi+act.sa_handler]
+	mov [rsp+k_act.sa_handler], rax
+
+	mov rax, [rsi+act.sa_flags]
+	or rax, SA_RESTORER
+	mov [rsp+k_act.sa_flags], rax
+
+	mov QWORD [rsp+k_act.sa_restorer], sigreturn
+
+	mov rax, [rsi+act.sa_mask]
+	mov [rsp+k_act.sa_mask], rax
+
+	lea rsi, [rsp]
+	
 	mov r10, 8   ; r10: size_t sigsetsize
 	mov rax, 13  ; sys_rt_sigaction
 	syscall
-	pop r10      ; restore r10
 	leave
 	ret
 
+
 	global sigprocmask
 sigprocmask
+	; int sigprocmask(int how, const sigset_t *set, sigset_t *oldset);
 	push rbp
 	mov rbp, rsp
+	push r10
+	mov r10, 8  ; r10: size_t sigsetsize
 	mov rax, 14  ; sys_rt_sigprocmask
-	syscall 
+	syscall
+	pop r10
 	leave
 	ret
 
@@ -170,11 +197,8 @@ alarm:
 
  	global _pause
 _pause:
- 	push rbp
- 	mov rbp, rsp
  	mov rax, 34
  	syscall
- 	leave
  	ret
 
 	global write
@@ -189,13 +213,15 @@ write:
 
 	global sleep
 sleep:
-	sub rsp, 8
-	mov QWORD [rsp], 0
-	mov [rsp], edi
-	mov rdi, rsp
+	; void sys_nanosleep(struct timespec *rqtp, struct timespec *rmtp)
+	push rbp
+	mov rbp, rsp
+	sub rsp, timespec.size
+	mov [rsp+timespec.tv_sec], rdi
+	mov QWORD [rsp+timespec.tv_nsec], 0
+	lea rdi, [rsp]
 	xor rsi, rsi
 	mov rax, 35 ; call nanosleep
 	syscall
-
-	add rsp, 8
+	leave
 	ret

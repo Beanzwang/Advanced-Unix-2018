@@ -62,6 +62,9 @@ extern "C" {
 #define SA_NOMASK SA_NODEFER
 #define SA_ONESHOT SA_RESETHAND
 
+#define SIG_BLOCK 0
+#define SIG_UNBLOCK 1
+#define SIG_SETMASK 2
 #define siginfo_t void
 
 typedef struct

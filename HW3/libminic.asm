@@ -50,33 +50,6 @@ struc k_act
 	.size:
 endstruc
 
-struc siginfo
-	.si_signo:	resq 1
-	.si_errno:	resq 1
-	.si_code:	resq 1
-	.si_trapno:	resq 1
-	.si_pid:	resq 1
-	.si_uid:	resq 1
-	.si_status:	resq 1
-	.si_utime:	resq 1
-	.si_stime:	resq 1
-	.si_value:	resq 1
-	.si_int:	resq 1
-	.si_ptr:	resq 1
-	.si_overrun:resq 1
-	.si_timerid:resq 1
-	.si_addr:	resq 1
-	.si_band:	resq 1
-	.si_fd:		resq 1
-	.si_addr_lsb:resq 1
-	.si_lower:	resq 1
-	.si_upper:	resq 1
-	.si_pkey:	resq 1
-	.si_call_addr:resq 1
-	.si_syscall:resq 1
-	.si_arch:	resq 1
-endstruc
-
 struc timespec
 	.tv_sec:	resq 1
 	.tv_nsec:	resq 1

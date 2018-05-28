@@ -4,3 +4,5 @@ hw1
 hw2
 test*
 peda*
+.gdb*
+*.o

@@ -61,7 +61,7 @@ endstruc
 	section .text
 
 	; exit, rdi = exit code
-	global exit
+	global exit:function
 exit:
 	mov	rax, 60
 	syscall
@@ -87,7 +87,9 @@ sigaction
 	or rax, SA_RESTORER
 	mov [rsp+k_act.sa_flags], rax
 
-	mov QWORD [rsp+k_act.sa_restorer], sigreturn
+	lea rax, [rip-nextline+sigreturn]
+nextline:
+	mov [rsp+k_act.sa_restorer], rax
 
 	mov rax, [rsi+act.sa_mask]
 	mov [rsp+k_act.sa_mask], rax
@@ -101,7 +103,7 @@ sigaction
 	ret
 
 
-	global sigprocmask
+	global sigprocmask:function
 sigprocmask
 	; int sigprocmask(int how, const sigset_t *set, sigset_t *oldset);
 	push rbp
@@ -115,7 +117,7 @@ sigprocmask
 	ret
 
 
-	global longjmp
+	global longjmp:function
 longjmp:
 	; void longjmp(jmp_buf env, int val)
 	push rbp
@@ -137,7 +139,7 @@ longjmp:
 	mov r15, [rdi+Jmpbuf.r15]
 	ret  ; pop rip
 
-	global setjmp
+	global setjmp:function
 setjmp:
 	; int setjmp(jmp_buf env)
 	; RBX, RSP, RBP, R12, R13, R14, R15, return addr
@@ -159,7 +161,7 @@ setjmp:
 	mov r15, [rdi+Jmpbuf.r15]
 	ret  ; pop rip
 
-	global alarm
+	global alarm:function
 alarm:
 	push rbp
 	mov rbp, rsp
@@ -168,13 +170,13 @@ alarm:
 	leave
 	ret
 
- 	global _pause
+ 	global _pause:function
 _pause:
  	mov rax, 34
  	syscall
  	ret
 
-	global write
+	global write:function
 write:
 	push	rbp
 	mov	rbp, rsp
@@ -184,7 +186,7 @@ write:
 	leave  ; mov rsp, rbp; pop rbp
 	ret
 
-	global sleep
+	global sleep:function
 sleep:
 	; void sys_nanosleep(struct timespec *rqtp, struct timespec *rmtp)
 	push rbp

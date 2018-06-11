@@ -2,7 +2,8 @@
 *.zip
 hw1
 hw2
-test*
+test*.o
 peda*
 .gdb*
 *.o
+hw4

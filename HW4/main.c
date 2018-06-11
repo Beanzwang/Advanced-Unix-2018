@@ -8,6 +8,7 @@
 #include <ifaddrs.h>
 #include <net/if.h>
 #include <errno.h>
+#include <unistd.h>
 #include <linux/if_packet.h>
 #include <netinet/ether.h>
 #include <net/ethernet.h> /* the L2 protocols */
@@ -22,43 +23,56 @@ Requirements:
 
 char *addr[50];
 char *if_name[50];
-char *name;
 int sockfd;
 
 int list_if();
-void send_pckt(char *if_name, char *line, int length);
+void send_pckt(char *if_name, char *line, int length, char *name);
 void recv_pckt();
 
 int main()
 {
 	int if_num, name_len;
+	char *name = NULL;
 	size_t size;
 
 	// A raw socket receives or sends the raw datagram not including link level headers.
-	if ((sockfd = socket(AF_PACKET, SOCK_RAW, IPPROTO_RAW)) == -1)
+	if ((sockfd = socket(AF_PACKET, SOCK_RAW, htons(0x801))) == -1)
 		perror("Fail to open socket.");
 	if_num = list_if();
 	
+
 	printf("Enter your name: ");
 	name_len = getline(&name, &size, stdin);
 	name[name_len-1] = '\0';
 	printf("Welcome, \'%s\'!\n", name);
+	
 
-	while(1) {
-		char *line = NULL;
-		size_t line_size;
-		int length;
-		if ((length = getline(&line, &line_size, stdin)) != -1) {
-			line[length - 1] = '\0';
+	pid_t pid;
+	pid = fork();
+	if (pid < 0) {
+		perror("Error");
+	} else if(pid == 0) {
+		while(1){
+			recv_pckt();
 		}
-		
-		for(int i = 0; i < if_num; ++i) {
-			send_pckt(if_name[i], line, length);
-		}
+	} else {
+		while (1)
+		{
+			char *line = NULL;
+			size_t line_size;
+			int length;
+			// TODO: getline size
+			if ((length = getline(&line, &line_size, stdin)) != -1)
+				line[length - 1] = '\0';
 
-		recv_pckt();
-		free(line);
+			// send to all ethernet adapter.
+			for (int i = 0; i < if_num; ++i)
+				send_pckt(if_name[i], line, length, name);
+			free(line);
+		}
 	}
+
+	free(name);
 
 	return 0;
 }
@@ -101,7 +115,7 @@ int list_if() {
 	return if_num;
 }
 
-void send_pckt(char *if_name, char *line, int length) {
+void send_pckt(char *if_name, char *line, int length, char *name) {
 	struct ifreq if_idx, if_mac; // char ifr_name[size], union
 	char sendbuf[BUF_SIZE];
 	// u_char ether_dhost[6], u_char ether_shost[6], u_short ether_type;
@@ -114,7 +128,7 @@ void send_pckt(char *if_name, char *line, int length) {
 	strncpy(if_idx.ifr_name, if_name, IFNAMSIZ - 1);
 	if (ioctl(sockfd, SIOCGIFINDEX, &if_idx) < 0)
 		perror("SIOCGIFINDEX");
-	// printf("ifname: %s", ifname);
+	
 	/* Get the MAC address of the interface to send on */
 	memset(&if_mac, 0, sizeof(struct ifreq));
 	strncpy(if_mac.ifr_name, if_name, IFNAMSIZ - 1);
@@ -140,7 +154,18 @@ void send_pckt(char *if_name, char *line, int length) {
 	tx_len += sizeof(struct ether_header);
 
 	/* Packet data */
-	for (int i = 0; i < length-1; ++i) {
+	// name
+	int name_len =  strlen(name);
+	sendbuf[tx_len++] = '[';
+	for (int i = 0; i < name_len; ++i) {
+		sendbuf[tx_len++] = name[i];
+	}
+	sendbuf[tx_len++] = ']';
+	sendbuf[tx_len++] = ':';
+	sendbuf[tx_len++] = ' ';
+
+	// msg
+	for (int i = 0; i < length - 1; ++i) {
 		sendbuf[tx_len++] = line[i];
 	}
 
@@ -156,22 +181,21 @@ void send_pckt(char *if_name, char *line, int length) {
 	socket_address.sll_addr[4] = 0xff;
 	socket_address.sll_addr[5] = 0xff;
 
-	/* Send packet */
-	if (sendto(sockfd, sendbuf, tx_len, 0, (struct sockaddr*)&socket_address, sizeof(struct sockaddr_ll)) < 0)
-	    printf("Send failed\n");
+	/* Send packet, non-blocking */
+	if (sendto(sockfd, sendbuf, tx_len, 0, (struct sockaddr *)&socket_address, sizeof(struct sockaddr_ll)) < 0)
+		printf("Send failed\n");
 }
 
 void recv_pckt() {
-	char buf[1024];
-	int num_byte = 4;
-	puts("Recv");
+	char buf[BUF_SIZE];
+	struct ether_header *eh = (struct ether_header *)buf;
+	int num_byte;
 	memset(buf, 0, BUF_SIZE);
-	if ((num_byte = recvfrom(sockfd, buf, BUF_SIZE, 0, NULL, NULL)) < 0)
+	if ((num_byte = recvfrom(sockfd, buf, BUF_SIZE, 0, NULL, NULL)) < 0) {
 		printf("Recv failed\n");
-	printf("byte: %d", num_byte);
-	for (int i = 0; i < num_byte; i++) {
-		printf("%02x:", buf[i]);
+	} else {
+		char *content = buf + sizeof(struct ether_header);
+		printf(">>> <%02x:%02x:%02x:%02x:%02x:%02x> %s\n", eh->ether_shost[0], eh->ether_shost[1],
+			   eh->ether_shost[2], eh->ether_shost[3], eh->ether_shost[4], eh->ether_shost[5], content);
 	}
-		
-	printf("\n");
 }

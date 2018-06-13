@@ -26,26 +26,25 @@ char *if_name[50];
 int sockfd;
 
 int list_if();
-void send_pckt(char *if_name, char *line, int length, char *name);
+void send_pckt(char *if_name, char *line, char *name);
 void recv_pckt();
 
 int main()
 {
-	int if_num, name_len;
-	char *name = NULL;
-	size_t size;
+	int if_num;
+	int max_len = BUF_SIZE - sizeof(struct ether_header) - 4;
+	char *name = malloc(max_len + 1);
 
 	// A raw socket receives or sends the raw datagram not including link level headers.
 	if ((sockfd = socket(AF_PACKET, SOCK_RAW, htons(0x801))) == -1)
 		perror("Fail to open socket.");
 	if_num = list_if();
-	
 
 	printf("Enter your name: ");
-	name_len = getline(&name, &size, stdin);
-	name[name_len-1] = '\0';
-	printf("Welcome, \'%s\'!\n", name);
-	
+	if (fgets(name, max_len, stdin) != NULL) {
+		name[strlen(name)-1] = '\0';
+		printf("Welcome, \'%s\'!\n", name);
+	}
 
 	pid_t pid;
 	pid = fork();
@@ -58,16 +57,15 @@ int main()
 	} else {
 		while (1)
 		{
-			char *line = NULL;
-			size_t line_size;
-			int length;
-			// TODO: getline size
-			if ((length = getline(&line, &line_size, stdin)) != -1)
-				line[length - 1] = '\0';
+			char *line = malloc(max_len - strlen(name));
+			
+			if (fgets(line, max_len-strlen(name), stdin) != NULL) {
+				// send to all ethernet adapter.
+				line[strlen(line)-1] = '\0';
+				for (int i = 0; i < if_num; ++i)
+					send_pckt(if_name[i], line, name);
+			}
 
-			// send to all ethernet adapter.
-			for (int i = 0; i < if_num; ++i)
-				send_pckt(if_name[i], line, length, name);
 			free(line);
 		}
 	}
@@ -79,8 +77,10 @@ int main()
 
 int list_if() {
 	struct ifaddrs *ifap, *ifa;
-	struct sockaddr_in *sa;
+	struct sockaddr_in *sa, *sa_nm, *sa_bc;
 	struct ifreq if_idx, if_mac; // char ifr_name[size], union
+	unsigned char *netmask;
+	char *broadcast;
 	int if_num = 0;
 
 	puts("Enumerated network interfaces:");
@@ -89,8 +89,16 @@ int list_if() {
 	for (ifa = ifap; ifa != NULL; ifa = ifa->ifa_next) {
 		if (ifa->ifa_addr->sa_family == AF_INET) {
 			sa = (struct sockaddr_in *)ifa->ifa_addr;
+			sa_nm = (struct sockaddr_in *)ifa->ifa_netmask;
+
+			// do not broadcast to yourself (localhost)
+			if (16777343 == sa->sin_addr.s_addr)
+				continue;
 			addr[if_num] = inet_ntoa(sa->sin_addr);
 			if_name[if_num] = ifa->ifa_name;
+			sa_bc = (struct sockaddr_in *)ifa->ifa_ifu.ifu_broadaddr;
+			broadcast = inet_ntoa(sa_bc->sin_addr);
+			netmask = (unsigned char *)&sa_nm->sin_addr.s_addr;
 
 			/* Get the index of the interface to send on */
 			memset(&if_idx, 0, sizeof(struct ifreq));
@@ -104,18 +112,19 @@ int list_if() {
 			if (ioctl(sockfd, SIOCGIFHWADDR, &if_mac) < 0)
 				perror("SIOCGIFHWADDR");
 
-			printf("%d - %s\t%s\t%02x:%02x:%02x:%02x:%02x:%02x\n", if_idx.ifr_ifindex, if_name[if_num], addr[if_num], ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[0],
+			// TODO: format string & testing
+			printf("%d - %s\t%s 0x%02x%02x%02x%02x (%s) %02x:%02x:%02x:%02x:%02x:%02x\n", if_idx.ifr_ifindex, if_name[if_num], addr[if_num],
+				   netmask[0], netmask[1], netmask[2], netmask[3], broadcast,((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[0],
 				   ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[1], ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[2], ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[3],
 				   ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[4], ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[5]);
 			if_num++;
 		}
 	}
 
-
 	return if_num;
 }
 
-void send_pckt(char *if_name, char *line, int length, char *name) {
+void send_pckt(char *if_name, char *line, char *name) {
 	struct ifreq if_idx, if_mac; // char ifr_name[size], union
 	char sendbuf[BUF_SIZE];
 	// u_char ether_dhost[6], u_char ether_shost[6], u_short ether_type;
@@ -165,7 +174,7 @@ void send_pckt(char *if_name, char *line, int length, char *name) {
 	sendbuf[tx_len++] = ' ';
 
 	// msg
-	for (int i = 0; i < length - 1; ++i) {
+	for (int i = 0; i < strlen(line); ++i) {
 		sendbuf[tx_len++] = line[i];
 	}
 
